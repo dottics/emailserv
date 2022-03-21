@@ -1,3 +1,3 @@
-module github.com/Dottics/emailserv
+module github.com/dottics/emailserv
 
 go 1.17
