@@ -31,7 +31,8 @@ func (s *Service) SendMail(msg *Message) dutil.Error {
 	// convert from the local service to msp.Service
 	ms := (*msp.Service)(s)
 	errors := msg.Validate()
-	if errors != nil {
+
+	if len(errors) != 0 {
 		e := &dutil.Err{
 			Status: 400,
 			Errors: errors,

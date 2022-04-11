@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/dottics/dutil"
 	"github.com/johannesscr/micro/microtest"
+	"net/mail"
 	"os"
 	"testing"
 )
@@ -39,37 +40,125 @@ func TestNewService(t *testing.T) {
 func TestService_SendMail(t *testing.T) {
 	tests := []struct {
 		name     string
-		msg      *Message
+		msg      Message
 		exchange *microtest.Exchange
 		e        dutil.Error
 	}{
 		{
 			name: "fail message validation",
-			e:    nil,
+			msg:  Message{},
+			e: &dutil.Err{
+				Status: 400,
+				Errors: map[string][]string{
+					"from":    {"address required"},
+					"to":      {"minimum 1 address"},
+					"replyTo": {"address required"},
+					"subject": {"required"},
+					"body":    {"required"},
+				},
+			},
 		},
-		{
-			name: "fail message marshal",
-			e:    nil,
-		},
-		{
-			name: "fail message send",
-			e:    nil,
-		},
+		//{
+		//	name: "fail message marshal",
+		//	msg: Message{
+		//		From:    mail.Address{Address: "from@mail.service.com"},
+		//		To:      []mail.Address{{Address: "to@mail.service.com"}},
+		//		ReplyTo: mail.Address{Address: "replyTo@mail.service.com"},
+		//		Subject: "test mail subject",
+		//		Body:    `<html><head></head><body><div class="forgot-quotes-here></div></body></html>`,
+		//	},
+		//	e: &dutil.Err{
+		//		Errors: map[string][]string{
+		//			"marshal": {"cannot marshal"},
+		//		},
+		//	},
+		//},
+		//{
+		//	name: "fail message send",
+		//	e:    nil,
+		//},
 		{
 			name: "fail response decoding",
-			e:    nil,
+			msg: Message{
+				From:    mail.Address{Address: "from@mail.service.com"},
+				To:      []mail.Address{{Address: "to@mail.service.com"}},
+				ReplyTo: mail.Address{Address: "replyTo@mail.service.com"},
+				Subject: "test mail subject",
+				Body:    `<html><head></head><body><div class="proper class"">test</div></body></html>`,
+			},
+			exchange: &microtest.Exchange{
+				Response: microtest.Response{
+					Status: 403,
+					Body:   `{"message":"","data":null,"errors":{"permission":["Please ensure you have permission]}}`,
+				},
+			},
+			e: &dutil.Err{
+				Status: 500,
+				Errors: map[string][]string{
+					"unmarshal": {"unexpected end of JSON input"},
+				},
+			},
 		},
 		{
 			name: "403 Forbidden",
-			e:    nil,
+			msg: Message{
+				From:    mail.Address{Address: "from@mail.service.com"},
+				To:      []mail.Address{{Address: "to@mail.service.com"}},
+				ReplyTo: mail.Address{Address: "replyTo@mail.service.com"},
+				Subject: "test mail subject",
+				Body:    `<html><head></head><body><div class="proper class"">test</div></body></html>`,
+			},
+			exchange: &microtest.Exchange{
+				Response: microtest.Response{
+					Status: 403,
+					Body:   `{"message":"","data":null,"errors":{"permission":["Please ensure you have permission"]}}`,
+				},
+			},
+			e: &dutil.Err{
+				Status: 403,
+				Errors: map[string][]string{
+					"permission": {"Please ensure you have permission"},
+				},
+			},
 		},
 		{
 			name: "500 Internal Server Error",
-			e:    nil,
+			msg: Message{
+				From:    mail.Address{Address: "from@mail.service.com"},
+				To:      []mail.Address{{Address: "to@mail.service.com"}},
+				ReplyTo: mail.Address{Address: "replyTo@mail.service.com"},
+				Subject: "test mail subject",
+				Body:    `<html><head></head><body><div class="proper class"">test</div></body></html>`,
+			},
+			exchange: &microtest.Exchange{
+				Response: microtest.Response{
+					Status: 500,
+					Body:   `{"message":"","data":null,"errors":{"internal_server_error":["some unexpected error"]}}`,
+				},
+			},
+			e: &dutil.Err{
+				Status: 500,
+				Errors: map[string][]string{
+					"internal_server_error": {"some unexpected error"},
+				},
+			},
 		},
 		{
 			name: "200 Success",
-			e:    nil,
+			msg: Message{
+				From:    mail.Address{Address: "from@mail.service.com"},
+				To:      []mail.Address{{Address: "to@mail.service.com"}},
+				ReplyTo: mail.Address{Address: "replyTo@mail.service.com"},
+				Subject: "test mail subject",
+				Body:    `<html><head></head><body><div class="proper class"">test</div></body></html>`,
+			},
+			exchange: &microtest.Exchange{
+				Response: microtest.Response{
+					Status: 200,
+					Body:   `{"message":"email sent successfully","data":null,"errors":null}`,
+				},
+			},
+			e: nil,
 		},
 	}
 
@@ -80,9 +169,18 @@ func TestService_SendMail(t *testing.T) {
 	for i, tc := range tests {
 		name := fmt.Sprintf("%d %s", i, tc.name)
 		t.Run(name, func(t *testing.T) {
-			e := s.SendMail(tc.msg)
+			// add mock exchange from the service
+			if tc.exchange != nil {
+				ms.Append(tc.exchange)
+			}
+
+			// test and send mail
+			//log.Print("MESSAGE:", &tc.msg, tc.msg)
+			e := s.SendMail(&tc.msg)
 			if e != nil {
-				if e.Error() != tc.e.Error() {
+				if tc.e == nil {
+					t.Errorf("expected error")
+				} else if e.Error() != tc.e.Error() {
 					t.Errorf("expected error %v got %v", tc.e, e)
 				}
 			} else if tc.e != nil {
