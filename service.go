@@ -30,6 +30,8 @@ func (s *Service) SetURL(scheme, host string) {
 func (s *Service) SendMail(msg *Message) dutil.Error {
 	// convert from the local service to msp.Service
 	ms := (*msp.Service)(s)
+	// set the path of the request
+	ms.URL.Path = "/send"
 	errors := msg.Validate()
 
 	if len(errors) != 0 {
