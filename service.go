@@ -3,18 +3,38 @@ package emailserv
 import (
 	"github.com/dottics/dutil"
 	"github.com/johannesscr/micro/msp"
+	"net/http"
+	"net/url"
 )
 
 // Service create a new Service type to add methods onto the type
-type Service msp.Service
+type Service struct {
+	msp.Service
+}
+
+type Config struct {
+	UserToken string
+	APIKey    string
+	Header    http.Header
+	Values    url.Values
+}
 
 // NewService creates a microservice-package instance. The
 // microservice-package is an instance that loads the environmental
 // variables to be able to connect to the specific microservice. The
 // microservice-package contains all the implementations to correctly
 // exchange with the microservice.
-func NewService(token string) *Service {
-	return (*Service)(msp.NewService(token, "email"))
+func NewService(config Config) *Service {
+	s := &Service{
+		Service: *msp.NewService(msp.Config{
+			Name:      "email",
+			UserToken: config.UserToken,
+			APIKey:    config.APIKey,
+			Header:    config.Header,
+			Values:    config.Values,
+		}),
+	}
+	return s
 }
 
 // SetURL sets the scheme and host of the service. Also makes the service
@@ -29,9 +49,8 @@ func (s *Service) SetURL(scheme, host string) {
 // otherwise returns nil.
 func (s *Service) SendMail(msg *Message) dutil.Error {
 	// convert from the local service to msp.Service
-	ms := (*msp.Service)(s)
 	// set the path of the request
-	ms.URL.Path = "/send"
+	s.URL.Path = "/send"
 	errors := msg.Validate()
 
 	if len(errors) != 0 {
@@ -45,7 +64,7 @@ func (s *Service) SendMail(msg *Message) dutil.Error {
 	if e != nil {
 		return e
 	}
-	res, e := ms.NewRequest("POST", ms.URL.String(), nil, payload)
+	res, e := s.DoRequest("POST", s.URL, nil, nil, payload)
 	if e != nil {
 		return e
 	}
@@ -53,7 +72,7 @@ func (s *Service) SendMail(msg *Message) dutil.Error {
 		Message string              `json:"message"`
 		Errors  map[string][]string `json:"errors"`
 	}{}
-	_, e = ms.Decode(res, &resp)
+	_, e = msp.Decode(res, &resp)
 	if e != nil {
 		return e
 	}

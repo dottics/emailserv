@@ -24,7 +24,7 @@ func TestNewService(t *testing.T) {
 		t.Errorf("unexpected error setting %s: %v", hostEnv, err)
 	}
 	token := "my-test-token"
-	ms := NewService(token)
+	ms := NewService(Config{UserToken: token})
 	if ms.URL.Scheme != scheme {
 		t.Errorf("expected Email Service to have Scheme %s got %s",
 			scheme, ms.URL.Scheme,
@@ -162,7 +162,7 @@ func TestService_SendMail(t *testing.T) {
 		},
 	}
 
-	s := NewService("")
+	s := NewService(Config{})
 	ms := microtest.MockServer(s)
 	defer ms.Server.Close()
 
